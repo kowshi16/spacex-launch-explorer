@@ -4,7 +4,7 @@ import { formatDate } from '../utils/helpers';
 
 export const LaunchCard = ({ launch, isFavorite, onToggleFavorite }) => {
   const successBadge = launch.success === true ? 'success' : launch.success === false ? 'failed' : 'unknown';
-  
+
   const badgeStyles = {
     success: 'bg-green-100 text-green-800',
     failed: 'bg-red-100 text-red-800',
@@ -28,7 +28,7 @@ export const LaunchCard = ({ launch, isFavorite, onToggleFavorite }) => {
         </Link>
         <button
           onClick={() => onToggleFavorite(launch.id)}
-          className="text-gray-400 hover:text-yellow-500 transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 rounded"
+          className="text-gray-400 cursor-pointer hover:text-yellow-500 transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 rounded"
           aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
         >
           <svg
@@ -59,7 +59,7 @@ export const LaunchCard = ({ launch, isFavorite, onToggleFavorite }) => {
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
-          Rocket: {launch.rocket?.name || 'Loading...'}
+          Rocket: {launch.rocket?.name || 'Unknown Rocket'}
         </div>
         
         <div className="flex items-center">
@@ -67,7 +67,7 @@ export const LaunchCard = ({ launch, isFavorite, onToggleFavorite }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          Launchpad: {launch.launchpad?.name || 'Loading...'}
+          Launchpad: {launch.launchpad?.name || 'Unknown Launchpad'}
         </div>
       </div>
 

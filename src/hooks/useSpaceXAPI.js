@@ -16,17 +16,41 @@ export const useSpaceXAPI = () => {
     // Check cache first
     if (cacheRef.current.launches) {
       setLaunches(cacheRef.current.launches);
+      setLoading(false);
       return;
     }
 
     abortControllerRef.current = new AbortController();
-    setLoading(false);
+    setLoading(true);
     setError(null);
 
     try {
-      const data = await api.fetchLaunches(abortControllerRef.current.signal);
-      cacheRef.current.launches = data;
-      setLaunches(data);
+      // Fetch launches
+      const launchesData = await api.fetchLaunches(abortControllerRef.current.signal);
+
+      // Fetch all rockets and launchpads
+      const [rocketsData, launchpadsData] = await Promise.all([
+        api.fetchRockets(abortControllerRef.current.signal),
+        api.fetchLaunchpads(abortControllerRef.current.signal)
+      ]);
+
+      // Create maps for quick lookup
+      const rocketMap = Object.fromEntries(
+        rocketsData.map(rocket => [rocket.id, rocket.name])
+      );
+      const launchpadMap = Object.fromEntries(
+        launchpadsData.map(launchpad => [launchpad.id, launchpad.name])
+      );
+
+      // Enrich launches with rocket and launchpad names
+      const enrichedLaunches = launchesData.map(launch => ({
+        ...launch,
+        rocket: { name: rocketMap[launch.rocket] || 'Unknown Rocket' },
+        launchpad: { name: launchpadMap[launch.launchpad] || 'Unknown Launchpad' }
+      }));
+
+      cacheRef.current.launches = enrichedLaunches;
+      setLaunches(enrichedLaunches);
     } catch (err) {
       if (err.name !== 'AbortError') {
         setError(err.message);
@@ -134,12 +158,13 @@ export const useSpaceXAPI = () => {
   }, [fetchLaunches]);
 
   useEffect(() => {
+    fetchLaunches();
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, []);
+  }, [fetchLaunches]);
 
   return {
     launches,

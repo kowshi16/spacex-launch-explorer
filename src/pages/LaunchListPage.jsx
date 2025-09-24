@@ -6,7 +6,6 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { Button } from "../components/Button";
 import { useSpaceXAPI } from "../hooks/useSpaceXAPI";
 import { useFavorites } from "../hooks/useFavorites";
-import { Pagination } from '../components/Pagination'
 import { filterLaunches, sortLaunchesByDate, debounce } from "../utils/helpers";
 
 const ITEMS_PER_PAGE = 12;
@@ -29,6 +28,7 @@ export const LaunchListPage = () => {
     search: debouncedSearch,
     year: searchParams.get("year") || "",
     success: searchParams.get("success") || "all",
+    sortOrder: searchParams.get("sort") || "newest",
     favoritesOnly: searchParams.get("favorites") === "true",
     favorites,
   };
@@ -47,10 +47,12 @@ export const LaunchListPage = () => {
 
   // Update URL when filters change
   useEffect(() => {
+    console.log("Filters:", filters);
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (filters.year) params.set("year", filters.year);
     if (filters.success !== "all") params.set("success", filters.success);
+    if (filters.sortOrder !== "newest") params.set("sort", filters.sortOrder);
     if (filters.favoritesOnly) params.set("favorites", "true");
 
     setSearchParams(params, { replace: true });
@@ -59,6 +61,7 @@ export const LaunchListPage = () => {
     debouncedSearch,
     filters.year,
     filters.success,
+    filters.sortOrder,
     filters.favoritesOnly,
     setSearchParams,
   ]);
@@ -71,7 +74,7 @@ export const LaunchListPage = () => {
   // Filter and sort launches
   const filteredLaunches = useMemo(() => {
     const filtered = filterLaunches(launches, filters);
-    return sortLaunchesByDate(filtered);
+    return sortLaunchesByDate(filtered, filters.sortOrder);
   }, [launches, filters]);
 
   // Paginate launches
@@ -83,28 +86,44 @@ export const LaunchListPage = () => {
   const totalPages = Math.ceil(filteredLaunches.length / ITEMS_PER_PAGE);
 
   const handleFilterChange = (key, value) => {
+    console.log(`handleFilterChange: ${key} = ${value}`); // Debug filter changes
     const params = new URLSearchParams(searchParams);
-    if (key === "year" && value) {
-      params.set("year", value);
-    } else if (key === "year" && !value) {
-      params.delete("year");
-    } else if (key === "success" && value !== "all") {
-      params.set("success", value);
-    } else if (key === "success" && value === "all") {
-      params.delete("success");
-    } else if (key === "favoritesOnly" && value) {
-      params.set("favorites", "true");
-    } else if (key === "favoritesOnly" && !value) {
-      params.delete("favorites");
+    switch (key) {
+      case "year":
+        if (value) params.set("year", value);
+        else params.delete("year");
+        break;
+      case "success":
+        if (value !== "all") params.set("success", value);
+        else params.delete("success");
+        break;
+      case "sortOrder":
+        if (value !== "newest") params.set("sort", value);
+        else params.delete("sort");
+        break;
+      case "favoritesOnly":
+        if (value) params.set("favorites", "true");
+        else params.delete("favorites");
+        break;
+      default:
+        break;
     }
     setSearchParams(params, { replace: true });
+  };
+
+  // Handle reset all filters
+  const resetFilters = () => {
+    console.log("Reset Filters Called"); // Debug reset
+    setSearchValue("");
+    setDebouncedSearch("");
+    setSearchParams({}, { replace: true }); // Clear all URL params
+    setCurrentPage(1);
   };
 
   const handleSearchChange = (value) => {
     setSearchValue(value);
   };
 
-  console.log("loading:", loading);
   if (loading) {
     return (
       <div>
@@ -161,10 +180,12 @@ export const LaunchListPage = () => {
       </div>
 
       <LaunchFilters
+        key={`${filters.year}-${filters.success}-${filters.sortOrder}`}
         launches={launches}
         filters={filters}
         onFilterChange={handleFilterChange}
         onSearchChange={handleSearchChange}
+        onResetFilters={resetFilters}
         searchValue={searchValue}
       />
 
@@ -210,37 +231,30 @@ export const LaunchListPage = () => {
             ))}
           </div>
 
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            loading={loading}
-          />
-
           {/* Pagination */}
-          {/* {totalPages > 1 && (
-            <div className="flex justify-center items-center space-x-2">
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center space-x-3 mb-8">
               <Button
                 variant="secondary"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(currentPage - 1)}
+                className="px-6 py-3 bg-gray-100 text-gray-700 cursor-pointer rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all"
               >
                 Previous
               </Button>
-              
-              <span className="text-sm text-gray-600">
+              <span className="text-sm font-medium text-gray-700">
                 Page {currentPage} of {totalPages}
               </span>
-              
               <Button
                 variant="secondary"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(currentPage + 1)}
+                className="px-6 py-3 bg-gray-100 text-gray-700 cursor-pointer rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all"
               >
                 Next
               </Button>
             </div>
-          )} */}
+          )}
         </>
       )}
     </div>

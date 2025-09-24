@@ -7,6 +7,18 @@ export const api = {
     return response.json();
   },
 
+  fetchRockets: async (signal) => {
+    const response = await fetch(`${BASE_URL}/rockets`, { signal });
+    if (!response.ok) throw new Error('Failed to fetch rockets');
+    return response.json();
+  },
+
+  fetchLaunchpads: async (signal) => {
+    const response = await fetch(`${BASE_URL}/launchpads`, { signal });
+    if (!response.ok) throw new Error('Failed to fetch launchpads');
+    return response.json();
+  },
+
   async fetchLaunchById(id, signal) {
     const response = await fetch(`${BASE_URL}/launches/${id}`, { signal });
     if (!response.ok) throw new Error('Failed to fetch launch');
