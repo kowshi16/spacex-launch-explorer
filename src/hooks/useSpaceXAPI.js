@@ -5,13 +5,11 @@ export const useSpaceXAPI = () => {
   const [launches, setLaunches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const abortControllerRef = useRef();
   const cacheRef = useRef({});
 
   const fetchLaunches = useCallback(async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    setLoading(true);
+    setError(null);
 
     // Check cache first
     if (cacheRef.current.launches) {
@@ -20,21 +18,17 @@ export const useSpaceXAPI = () => {
       return;
     }
 
-    abortControllerRef.current = new AbortController();
-    setLoading(true);
-    setError(null);
-
     try {
       // Fetch launches
-      const launchesData = await api.fetchLaunches(abortControllerRef.current.signal);
+      const launchesData = await api.fetchLaunches();
 
-      // Fetch all rockets and launchpads
+      // Fetch rockets & launchpads
       const [rocketsData, launchpadsData] = await Promise.all([
-        api.fetchRockets(abortControllerRef.current.signal),
-        api.fetchLaunchpads(abortControllerRef.current.signal)
+        api.fetchRockets(),
+        api.fetchLaunchpads()
       ]);
 
-      // Create maps for quick lookup
+      // Create maps
       const rocketMap = Object.fromEntries(
         rocketsData.map(rocket => [rocket.id, rocket.name])
       );
@@ -42,7 +36,7 @@ export const useSpaceXAPI = () => {
         launchpadsData.map(launchpad => [launchpad.id, launchpad.name])
       );
 
-      // Enrich launches with rocket and launchpad names
+      // Enrich launches
       const enrichedLaunches = launchesData.map(launch => ({
         ...launch,
         rocket: { name: rocketMap[launch.rocket] || 'Unknown Rocket' },
@@ -52,104 +46,79 @@ export const useSpaceXAPI = () => {
       cacheRef.current.launches = enrichedLaunches;
       setLaunches(enrichedLaunches);
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        setError(err.message);
-      }
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }, []);
 
   const fetchLaunchDetails = useCallback(async (id) => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
     // Check cache first
     if (cacheRef.current[`launch-${id}`]) {
       return cacheRef.current[`launch-${id}`];
     }
 
-    abortControllerRef.current = new AbortController();
-    
     try {
-      const launch = await api.fetchLaunchById(id, abortControllerRef.current.signal);
+      const launch = await api.fetchLaunchById(id);
       cacheRef.current[`launch-${id}`] = launch;
       return launch;
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        throw err;
-      }
+      throw err;
     }
   }, []);
 
   const fetchRelatedData = useCallback(async (rocketId, launchpadId, payloadIds = []) => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    const promises = [];
+
+    if (rocketId && !cacheRef.current[`rocket-${rocketId}`]) {
+      promises.push(
+        api.fetchRocket(rocketId).then(data => ({ type: 'rocket', data }))
+      );
     }
 
-    abortControllerRef.current = new AbortController();
-    
-    try {
-      const promises = [];
-      
-      if (rocketId && !cacheRef.current[`rocket-${rocketId}`]) {
-        promises.push(
-          api.fetchRocket(rocketId, abortControllerRef.current.signal)
-            .then(data => ({ type: 'rocket', data }))
-        );
-      }
-      
-      if (launchpadId && !cacheRef.current[`launchpad-${launchpadId}`]) {
-        promises.push(
-          api.fetchLaunchpad(launchpadId, abortControllerRef.current.signal)
-            .then(data => ({ type: 'launchpad', data }))
-        );
-      }
-      
-      payloadIds.forEach(payloadId => {
-        if (!cacheRef.current[`payload-${payloadId}`]) {
-          promises.push(
-            api.fetchPayload(payloadId, abortControllerRef.current.signal)
-              .then(data => ({ type: 'payload', data, id: payloadId }))
-          );
-        }
-      });
-
-      const results = await Promise.all(promises);
-      
-      const relatedData = {
-        rocket: cacheRef.current[`rocket-${rocketId}`],
-        launchpad: cacheRef.current[`launchpad-${launchpadId}`],
-        payloads: {}
-      };
-
-      results.forEach(result => {
-        if (result.type === 'rocket') {
-          cacheRef.current[`rocket-${rocketId}`] = result.data;
-          relatedData.rocket = result.data;
-        } else if (result.type === 'launchpad') {
-          cacheRef.current[`launchpad-${launchpadId}`] = result.data;
-          relatedData.launchpad = result.data;
-        } else if (result.type === 'payload') {
-          cacheRef.current[`payload-${result.id}`] = result.data;
-          relatedData.payloads[result.id] = result.data;
-        }
-      });
-
-      // Add cached payloads
-      payloadIds.forEach(id => {
-        if (cacheRef.current[`payload-${id}`]) {
-          relatedData.payloads[id] = cacheRef.current[`payload-${id}`];
-        }
-      });
-
-      return relatedData;
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        throw err;
-      }
+    if (launchpadId && !cacheRef.current[`launchpad-${launchpadId}`]) {
+      promises.push(
+        api.fetchLaunchpad(launchpadId).then(data => ({ type: 'launchpad', data }))
+      );
     }
+
+    payloadIds.forEach(payloadId => {
+      if (!cacheRef.current[`payload-${payloadId}`]) {
+        promises.push(
+          api.fetchPayload(payloadId).then(data => ({ type: 'payload', data, id: payloadId }))
+        );
+      }
+    });
+
+    const results = await Promise.all(promises);
+
+    const relatedData = {
+      rocket: cacheRef.current[`rocket-${rocketId}`],
+      launchpad: cacheRef.current[`launchpad-${launchpadId}`],
+      payloads: {}
+    };
+
+    results.forEach(result => {
+      if (result.type === 'rocket') {
+        cacheRef.current[`rocket-${rocketId}`] = result.data;
+        relatedData.rocket = result.data;
+      } else if (result.type === 'launchpad') {
+        cacheRef.current[`launchpad-${launchpadId}`] = result.data;
+        relatedData.launchpad = result.data;
+      } else if (result.type === 'payload') {
+        cacheRef.current[`payload-${result.id}`] = result.data;
+        relatedData.payloads[result.id] = result.data;
+      }
+    });
+
+    // Add cached payloads
+    payloadIds.forEach(id => {
+      if (cacheRef.current[`payload-${id}`]) {
+        relatedData.payloads[id] = cacheRef.current[`payload-${id}`];
+      }
+    });
+
+    return relatedData;
   }, []);
 
   const retry = useCallback(() => {
@@ -159,11 +128,6 @@ export const useSpaceXAPI = () => {
 
   useEffect(() => {
     fetchLaunches();
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
   }, [fetchLaunches]);
 
   return {
